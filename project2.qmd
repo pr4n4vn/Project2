@@ -1,0 +1,40 @@
+---
+title: "Project2 by Pranav Nair in ST558"
+format: html
+editor: visual
+---
+
+
+```{r}
+library(shiny)
+library(httr)
+
+load_data_api <- function(latitude, longitude) {
+  url_func <- paste0("https://api.weather.gov/points/", latitude, ",", longitude)
+  
+  result <- GET(url_func)
+  
+  if(status_code(result) != 200) {
+    stop("Data retrieval failed.")
+  }
+  
+  cont <- content(result, "parsed", simplifyDataFrame = TRUE)
+  url_forecast <- content$properties$forecast
+  
+  result_forecast <- GET(url_forecast)
+  
+  if(status_code(result_forecast) != 200){
+    stop("Forecast data retrieval failed.")
+  }
+  
+  forecast_cont <- content(result_forecast, "forecast", simplifyDataFrame = TRUE)
+  forecast_time <- forecast_cont$properties$periods
+  
+  return(forecast_time)
+  
+}
+  
+  
+
+```
+
