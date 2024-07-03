@@ -9,10 +9,10 @@ editor: visual
 library(shiny)
 library(httr)
 
-load_data_api <- function(latitude, longitude) {
+load_data_api <- function(latitude, longitude, user_agent) {
   url_func <- paste0("https://api.weather.gov/points/", latitude, ",", longitude)
   
-  result <- GET(url_func)
+  result <- GET(url_func, add_headers("User Agent" = user_agent))
   
   if(status_code(result) != 200) {
     stop("Data retrieval failed.")
@@ -21,9 +21,9 @@ load_data_api <- function(latitude, longitude) {
   cont <- content(result, "parsed", simplifyDataFrame = TRUE)
   url_forecast <- content$properties$forecast
   
-  result_forecast <- GET(url_forecast)
+  result_forecast <- GET(url_forecast, add_headers("User Agent" = user_agent))
   
-  if(status_code(result_forecast) != 200){
+  if(status_code(result_forecast) != 200) {
     stop("Forecast data retrieval failed.")
   }
   
@@ -33,6 +33,24 @@ load_data_api <- function(latitude, longitude) {
   return(forecast_time)
   
 }
+
+
+load_data_forecast <- function(forecast_time, user_agent) {
+  result <- GET(forecast_time, add_headers("User Agent" = user_agent))
+  if(status_code(result_forecast) != 200) {
+    stop("Forecast data retrieval failed.")
+  }
+  
+  forecast_cont <- content(result, "parsed", simplifyDataFrame = TRUE)
+  
+}
+
+latitude <- "39.7456"
+longitude <- "-97.0892"
+user_agent <- "Pranav Nair (blahblah@example.com)"
+
+forecast <- load_data_api(latitude, longitude, user_agent)
+print(forecast)
   
   
 
