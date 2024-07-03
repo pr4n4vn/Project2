@@ -9,66 +9,121 @@ editor: visual
 library(shiny)
 library(httr)
 library(jsonlite)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(ggheatmap)
 
-load_data_api <- function(latitude, longitude, user_agent) {
-  url <- "https://api.weather.gov/points/"
-  url_func <- paste0(url, latitude, ",", longitude)
+
+#Define the base URL link.
+url_base <- "https://api.weather.gov/"
+```
+
+
+```{r}
+#Get the weather data by latitude and longitude
+lat_long_api <- function(latitude, longitude, user_agent) {
+  url_func <- paste0(url_base, "/points/", latitude, ",", longitude)
   
   result <- GET(url_func, add_headers("User-Agent" = user_agent))
   
-  if(status_code(result) != 200) {
-    stop("Data retrieval failed.")
+  if(status_code(result) == 200) {
+      content <- content(result, "parsed", type = "application/json", simplifyDataFrame = TRUE)
+      url_forecast <- content$properties$forecast
+      result_forecast <- GET(url_forecast, add_headers("User-Agent" = user_agent))
+      if(status_code(result_forecast) == 200) {
+        content_forecast <- content(result_forecast, "parsed", type = "application/json", simplifyDataFrame = TRUE)
+        return(as_tibble(forecast_content$properties$periods))
+      } else {
+        stop("Forecast data retrieval failed")
+      }
+  } else {
+    stop("Lat/Long data retrieval failed.")
   }
-  
-  content <- content(result, "parsed", type = "application/json", simplifyDataFrame = TRUE)
-  url_forecast <- content$properties$forecast
-  
-  return(url_forecast)
-}
-  
-load_forecast <- function(url_forecast, user_agent) {
-  result <- GET(url_forecast, add_headers("User-Agent" = user_agent))
-  
-  if(status_code(result) != 200) {
-    stop("Forecast data retrieval failed.")
-  }
-  
-  content <- content(result, "parsed", type = "application/json", simplifyDataFrame = TRUE)
-  forecast_time <- content$properties$periods
-  
-  return(forecast_time)
   
 }
 
-total_wrapper <- function(latitude, longitude, user_agent) {
-  url_forecast <- load_data_api(latitude, longitude, user_agent)
-  forecast_time <- load_forecast(url_forecast, user_agent)
-  
-  return(forecast_time)
+```
+
+
+```{r}
+#Get the current weather observations
+current_obs_api <- function(station, user_agent) {
+  url <- paste0(url_base, "/stations/", station, "/observations/latest")
+  result <- GET(url, add_headers("User-Agent" = user_agent))
+    if(status_code(result) == 200) {
+      content <- content(result, "parsed", type = "application/json", simplifyDataFrame = TRUE)
+      return(as_tibble(content$properties))
+    } else {
+    stop("Current observation data retrieval failed.")
+    }
 }
 
+print(current_obs_api("KSFO", user_agent))
 
 latitude <- "38.8894"
 longitude <- "-77.0352"
 user_agent <- "Pranav Nair (blahblah@example.com)"
 
-forecast <- total_wrapper(latitude, longitude, user_agent)
+forecast <- get_lat_long(latitude, longitude, user_agent)
 print(forecast)
-  
+
+
+
 
 #contingency tables
 
+
+forecast_df <- as.data.frame(forecast)
+str(forecast_df)
+
+forecast_df$temperature <- as.numeric(forecast$temperature)
+forecast_df$windSpeed <- parse_number(forecast_df$windSpeed)
+forecast$shortForecast <- as.factor(forecast$shortForecast)
+
+str(forecast$temperature)
+str(forecast_df$windSpeed)
+str(forecast_df$shortForecast)
+
+
+
 str(forecast)
-table(forecast$temperature)
-table(forecast$windSpeed)
+table(forecast_df$temperature)
+table(forecast_df$windSpeed)
+table(forecast_df$shortForecast)
 
 
 #numerical summaries
+numerical <- forecast_df |>
+  group_by(shortForecast) |>
+  summarize(mean_temperature = mean(temperature, na.rm = TRUE),
+            median_temperature = median(temperature, na.rm = TRUE),
+            sd_temperature = sd(temperature, na.rm = TRUE),
+            mean_windspeed = mean(windSpeed, na.rm = TRUE),
+            median_windspeed = median(windSpeed, na.rm = TRUE),
+            sd_windspeed = sd(windSpeed, na.rm = TRUE))
 
+print(numerical)
 
 #at least 4 plots
 
-  
+library(ggheatmap)
+plot1 <- ggplot(forecast_df, aes(x = name, y = startTime, fill = temperature)) + geom_tile() + scale_fill_gradient(low = "blue", high = "red") + labs (
+                                                        title = "Heat Map",
+                                                        x = "Temperature",
+                                                        y = "Forecast"
+)
 
+print(plot1)
+
+plot2 <- ggplot(forecast_df, aes(x = shortForecast, y = windSpeed, fill = shortForecast)) + geom_boxplot()
+print(plot2)
+
+
+plot3 <- ggplot(forecast_df, aes(x = shortForecast, y = temperature, fill = shortForecast)) + geom_boxplot()
+print(plot3)
+
+plot4 <- ggplot(forecast_df, aes(x = windSpeed, y = temperature, color = shortForecast)) + geom_point()
+print(plot4)
 ```
 
