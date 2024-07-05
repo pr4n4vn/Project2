@@ -50,7 +50,7 @@ europe_data <- europe_data |>
 # Example usage
 
 region_data <- get_countries_by_region2("Europe", fields = "name,population")
-print(region_data)
+  print(region_data)
 
 
 ```
