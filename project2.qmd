@@ -13,117 +13,148 @@ library(readr)
 library(dplyr)
 library(ggplot2)
 library(ggheatmap)
-
+library(tibble)
 
 #Define the base URL link.
-url_base <- "https://api.weather.gov/"
+
 ```
 
-
+The API that I chose to utilize is the REST Countries API.  In this API, there is multiple points of data from different regions around the world, such as population.  To start off this project, I will create a function that can obtain the data from different countries by region.
 ```{r}
-#Get the weather data by latitude and longitude
-lat_long_api <- function(latitude, longitude, user_agent) {
-  url_func <- paste0(url_base, "/points/", latitude, ",", longitude)
-  
-  result <- GET(url_func, add_headers("User-Agent" = user_agent))
-  
-  if(status_code(result) == 200) {
-      content <- content(result, "parsed", type = "application/json", simplifyDataFrame = TRUE)
-      url_forecast <- content$properties$forecast
-      result_forecast <- GET(url_forecast, add_headers("User-Agent" = user_agent))
-      if(status_code(result_forecast) == 200) {
-        content_forecast <- content(result_forecast, "parsed", type = "application/json", simplifyDataFrame = TRUE)
-        return(as_tibble(forecast_content$properties$periods))
-      } else {
-        stop("Forecast data retrieval failed")
-      }
-  } else {
-    stop("Lat/Long data retrieval failed.")
+
+
+get_countries_by_region2 <- function(region, fields = NULL) {
+  base_url <- "https://restcountries.com/v3.1/region/"
+  url <- paste0(base_url, region)
+  if (!is.null(fields)) {
+    url <- paste0(url, "?fields=", fields)
   }
   
+  response <- GET(url)
+  
+  if (status_code(response) != 200) {
+    stop("Failed to retrieve data")
+  }
+  content <- fromJSON(content(response, "text", encoding = "UTF-8"), flatten = TRUE)
+  return(as_tibble(content))
 }
+
+# Retrieve data for all countries in Europe
+europe_data <- get_countries_by_region("Europe", fields = "name,population,area")
+
+# Calculate population density
+europe_data <- europe_data |>
+  mutate(density = population / area)
+
+
+# Example usage
+
+region_data <- get_countries_by_region2("Europe", fields = "name,population")
+print(region_data)
+
+
+```
+With this, the user should have the flexibility to choose a certain region.  Three parameters can be modified - fields, region, and name.
+
+
+The next function should be to obtain the country data by the name of the country... i.e Germany.
+```{r}
+get_country_by_name <- function(country_name, fullText = NULL) {
+  url_base <- paste0("https://restcountries.com/v3.1/name/", country_name)
+  
+  query_params <- list(fullText = fullText)
+  
+  result <- GET(url_base, query = query_params)
+  
+  if (status_code(result) == 200) {
+    content <- content(result, "text", encoding = "UTF-8")
+    content_json <- fromJSON(content, simplifyDataFrame = TRUE)
+    country_data <- as_tibble(content_json)
+    return(country_data)
+  } else {
+    stop("Country data retrieval failed.")
+  }
+}
+
+  country_data <- get_country_by_name("Germany")
+  print(country_data)
+```
+Great!  Looks like both functions work!
+
+
+Here is the contingency table.
+```{r}
+#Contingency table
+region_data <- get_countries_by_region2("Europe")
+contingency_table <- table(region_data$region, region_data$subregion)
+print(contingency_table)
+```
+
+
+
+Here is the numerical summary.
+```{r}
+#Njumerial summaries
+
+region_data <- get_countries_by_region2("Europe", "name,population,area,region")
+  summary_table <- region_data %>% 
+    group_by(region) %>% 
+    summarize(
+      avg_population = mean(population, na.rm = TRUE),
+      avg_area = mean(area, na.rm = TRUE),
+      sd_population = sd(population, na.rm = TRUE),
+      sd_area = sd(area, na.rm = TRUE)
+    )
+  print(summary_table)
+
+```
+
+
+Below are the four plots as requested in the project assignment.
+```{r}
+#Plot 1
+
+ggplot(region_data, aes(x = area, y = population)) +
+    geom_point() +
+    labs(title = "Population vs. Area", x = "Area (sq km)", y = "Population") +
+    theme_minimal()
+```
+
+```{r}
+#Plot 2
+
+  ggplot(region_data, aes(x = region, y = population, fill = region)) +
+    geom_boxplot() +
+    labs(title = "Population Distribution by Region", x = "Region", y = "Population") +
+    theme_minimal()
+
+```
+
+
+
+```{r}
+#Plot 3
+  ggplot(region_data, aes(x = region, y = area, fill = region)) +
+    geom_boxplot() +
+    labs(title = "Area Distribution by Region", x = "Region", y = "Area (sq km)") +
+    theme_minimal()
 
 ```
 
 
 ```{r}
-#Get the current weather observations
-current_obs_api <- function(station, user_agent) {
-  url <- paste0(url_base, "/stations/", station, "/observations/latest")
-  result <- GET(url, add_headers("User-Agent" = user_agent))
-    if(status_code(result) == 200) {
-      content <- content(result, "parsed", type = "application/json", simplifyDataFrame = TRUE)
-      return(as_tibble(content$properties))
-    } else {
-    stop("Current observation data retrieval failed.")
-    }
-}
+#Plot 4
 
-print(current_obs_api("KSFO", user_agent))
+europe_data <- get_countries_by_region("Europe", fields = "name,population,area")
 
-latitude <- "38.8894"
-longitude <- "-77.0352"
-user_agent <- "Pranav Nair (blahblah@example.com)"
+europe_data <- europe_data |>
+  mutate(density = population / area)
 
-forecast <- get_lat_long(latitude, longitude, user_agent)
-print(forecast)
+  ggplot(europe_data, aes(x = reorder(name, density), y = density, fill = region)) +
+    geom_bar(stat = "identity") +
+    labs(title = "Population Density by Country", x = "Country", y = "Density (pop/sq km)") +
+    theme_minimal()
 
 
-
-
-#contingency tables
-
-
-forecast_df <- as.data.frame(forecast)
-str(forecast_df)
-
-forecast_df$temperature <- as.numeric(forecast$temperature)
-forecast_df$windSpeed <- parse_number(forecast_df$windSpeed)
-forecast$shortForecast <- as.factor(forecast$shortForecast)
-
-str(forecast$temperature)
-str(forecast_df$windSpeed)
-str(forecast_df$shortForecast)
-
-
-
-str(forecast)
-table(forecast_df$temperature)
-table(forecast_df$windSpeed)
-table(forecast_df$shortForecast)
-
-
-#numerical summaries
-numerical <- forecast_df |>
-  group_by(shortForecast) |>
-  summarize(mean_temperature = mean(temperature, na.rm = TRUE),
-            median_temperature = median(temperature, na.rm = TRUE),
-            sd_temperature = sd(temperature, na.rm = TRUE),
-            mean_windspeed = mean(windSpeed, na.rm = TRUE),
-            median_windspeed = median(windSpeed, na.rm = TRUE),
-            sd_windspeed = sd(windSpeed, na.rm = TRUE))
-
-print(numerical)
-
-#at least 4 plots
-
-library(ggheatmap)
-plot1 <- ggplot(forecast_df, aes(x = name, y = startTime, fill = temperature)) + geom_tile() + scale_fill_gradient(low = "blue", high = "red") + labs (
-                                                        title = "Heat Map",
-                                                        x = "Temperature",
-                                                        y = "Forecast"
-)
-
-print(plot1)
-
-plot2 <- ggplot(forecast_df, aes(x = shortForecast, y = windSpeed, fill = shortForecast)) + geom_boxplot()
-print(plot2)
-
-
-plot3 <- ggplot(forecast_df, aes(x = shortForecast, y = temperature, fill = shortForecast)) + geom_boxplot()
-print(plot3)
-
-plot4 <- ggplot(forecast_df, aes(x = windSpeed, y = temperature, color = shortForecast)) + geom_point()
-print(plot4)
 ```
 
