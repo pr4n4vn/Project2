@@ -59,22 +59,22 @@ With this, the user should have the flexibility to choose a certain region.  Thr
 
 The next function should be to obtain the country data by the name of the country... i.e Germany.
 ```{r}
-get_country_by_name <- function(country_name, fullText = NULL) {
-  url_base <- paste0("https://restcountries.com/v3.1/name/", country_name)
-  
-  query_params <- list(fullText = fullText)
-  
-  result <- GET(url_base, query = query_params)
-  
-  if (status_code(result) == 200) {
-    content <- content(result, "text", encoding = "UTF-8")
-    content_json <- fromJSON(content, simplifyDataFrame = TRUE)
-    country_data <- as_tibble(content_json)
-    return(country_data)
-  } else {
-    stop("Country data retrieval failed.")
+  get_country_by_name <- function(country_name, fullText = NULL) {
+    url_base <- paste0("https://restcountries.com/v3.1/name/", country_name)
+    
+    query_params <- list(fullText = fullText)
+    
+    result <- GET(url_base, query = query_params)
+    
+    if (status_code(result) == 200) {
+      content <- content(result, "text", encoding = "UTF-8")
+      content_json <- fromJSON(content, simplifyDataFrame = TRUE)
+      country_data <- as_tibble(content_json)
+      return(country_data)
+    } else {
+      stop("Country data retrieval failed.")
+    }
   }
-}
 
   country_data <- get_country_by_name("Germany")
   print(country_data)
