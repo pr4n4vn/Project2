@@ -16,8 +16,6 @@ library(DT)
 library(shinyFeedback)
 # Define UI for application that draws a histogram
 ui <-
-    
-    # Application title
     navbarPage("Country Data Explorer",
     
     tabPanel("About",
