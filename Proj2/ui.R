@@ -8,10 +8,10 @@
 #
 
 library(shiny)
-
+library(DT)
+library(ggplot2)
 ui <-
   navbarPage("Country Data Explorer",
-             
              tabPanel("About",
                       sidebarLayout(
                         sidebarPanel(
@@ -43,7 +43,8 @@ ui <-
                           downloadButton("downloadData", "Download Data")
                         ),
                         mainPanel(
-                          DTOutput("data_table")
+                          dataTableOutput("data_table"),
+                          dataTableOutput("country_data_table")
                         )
                       )
              ),
@@ -56,7 +57,7 @@ ui <-
                           actionButton("plot_data", "Plot Data")
                         ),
                         mainPanel(
-                          plotOutput("data_plot")
+                          plotOutput("plot")
                         )
                       ))
   )

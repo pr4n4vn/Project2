@@ -8,7 +8,9 @@
 #
 
 library(shiny)
-
+library(httr)
+library(jsonlite)
+library(dplyr)
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
   
@@ -61,6 +63,7 @@ server <- function(input, output, session) {
   })
   
   
+  
   observeEvent(input$get_data_country, {
     req(input$country_name)
     country_data <- get_country_by_name(input$country_name, input$fullText)
@@ -91,19 +94,19 @@ server <- function(input, output, session) {
   #This has to be able to download data
   output$download_data <- downloadHandler(
     filename = function() {
-      paste("country_data", Sys.Date(), ".csv", sep = "")
+      paste("country_data-", Sys.Date(), ".csv", sep = "")
     },
     content = function(file) {
-      write.csv(data, file)
+      write.csv(as.data.frame(data()), file, row.names = FALSE)
     }
   )
   
   #Get the plot graphs
   observeEvent(input$plot_data, {
     req(input$x_var, input$y_var, input$plot_type)
-    plot_data <- data()
     
-    if (input$plot_type == "Bar Plot") {
+    output$plot <- renderPlot({
+     if (input$plot_type == "Bar Plot") {
       ggplot(plot_data, aes_string(x = input$x_var, fill = input$y_var)) +
         geom_bar() +
         theme_minimal() +
@@ -119,6 +122,7 @@ server <- function(input, output, session) {
              y = input$y_var)
     }
   })
+})
 }
 
 shinyApp(ui = ui, server = server)
