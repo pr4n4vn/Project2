@@ -9,6 +9,8 @@
 
 library(shiny)
 
+
+#In this first ui code, I am setting the visual aspect of the Shiny Dashboard web app.  
 ui <-
   navbarPage("Country Data Explorer",
              tabPanel("About",
@@ -35,11 +37,11 @@ ui <-
                           textInput("field", "Enter the Field", value = "name,population,area"),
                           actionButton("get_data_region", "Get Data by Region"),
                           hr(),
-                          textInput("country_name", "Country Name", "United States"),
+                          textInput("country_name", "Country Name"),
                           checkboxInput("fullText","Full Text Match", FALSE),
                           actionButton("get_data_country", "Get Data by Country"),
                           hr(),
-                          downloadButton("downloadData", "Download Data")
+                          downloadButton("download_data", "Download Data", class = NULL)
                         ),
                         mainPanel(
                           dataTableOutput("data_table"),
@@ -61,15 +63,21 @@ ui <-
                       ))
   )
 
+  
+
 
 library(shiny)
 library(httr)
 library(jsonlite)
 library(dplyr)
 library(ggplot2)
-# Define server logic required to draw a histogram
+library(DT)
+# Define server logic required.
 server <- function(input, output, session) {
   
+  data <- reactiveVal(NULL)
+
+  #Function to get the data by region
   get_countries_by_region2 <- function(region, fields = NULL) {
     base_url <- "https://restcountries.com/v3.1/region/"
     url <- paste0(base_url, region)
@@ -88,14 +96,15 @@ server <- function(input, output, session) {
     }
   }
 
-  
+ 
+  #here is the function to get the country data by name. Somehow, it works in my project2 file, but in the shiny app dashboard, it comes up as a "Malformed input to a URL function" error. 
+
   get_country_by_name <- function(country_name, fullText = NULL) {
-    base_url <- "https://restcountries.com/v3.1/name/"
-    url <- paste0(base_url, country_name)
-    if (fullText) {
-      url <- paste0(url, "?fullText=true")
-    }
-    result <- GET(url)
+    url_base <- paste0("https://restcountries.com/v3.1/name/", country_name)
+    
+    query_params <- list(fullText = fullText)
+    
+    result <- GET(url_base, query = query_params)
     
     if (status_code(result) == 200) {
       content <- content(result, "text", encoding = "UTF-8")
@@ -107,13 +116,13 @@ server <- function(input, output, session) {
     }
   }
   
-  data <- reactiveVal(NULL)
   
   #Code for program to fetch the data based upon input from user.  
   observeEvent(input$get_data_region, {
     req(input$region, input$field)
     fields <- gsub("\\s+", "", input$field)
-    data <- get_countries_by_region2(input$region, fields)
+    fetched_data <- get_countries_by_region2(input$region, fields)
+    data(fetched_data)
     output$data_table <- renderDataTable({
       data()
     })
@@ -123,7 +132,7 @@ server <- function(input, output, session) {
   })
   
   
-  #Code to fetch data by country
+  #Code to fetch data by country. 
   observeEvent(input$get_data_country, {
     req(input$country_name)
     country_data <- get_country_by_name(input$country_name, input$fullText)
@@ -134,7 +143,7 @@ server <- function(input, output, session) {
   
   
   
-  #This has to subset data
+  #This is to show that the output of the subsetted data can display on the UI
   output$subset_data <- renderUI({
     req(data())
     tagList(
@@ -145,44 +154,50 @@ server <- function(input, output, session) {
   
   #This has to be able to subset the data accordingly  
   observeEvent(input$subset_rows, {
+    req(input$subset_rows, data())
+    
     output$data_table <- renderDataTable({
       req(input$subset_rows)
       datatable(data()[1:input$subset_rows, input$subset_cols, drop = FALSE])
     })
   })
   
-  #This has to be able to download data
+  #This has to be able to download data.   
   output$download_data <- downloadHandler(
     filename = function() {
-      paste("country_data-", Sys.Date(), ".csv", sep = "")
+      paste("data-", Sys.Date(), ".csv", sep = "")
     },
     content = function(file) {
-      write.csv(as.data.frame(data()), file, row.names = FALSE)
+      write_csv(as_data_frame(data()), file)
     }
   )
+
+  #Get the plot graphs, but here the button does not work properly, and I'm not sure where I went wrong here
+  plot_data <- reactiveVal(NULL)
   
-  #Get the plot graphs
   observeEvent(input$plot_data, {
     req(input$x_var, input$y_var, input$plot_type)
     
-    output$plot <- renderPlot({
       if (input$plot_type == "Bar Plot") {
-        ggplot(plot_data, aes_string(x = input$x_var, fill = input$y_var)) +
+        plot <- ggplot(plot_data(), aes_string(x = input$x_var, fill = input$y_var)) +
           geom_bar() +
           theme_minimal() +
           labs(title = paste("Bar Plot", input$x_var, "by", input$y_var),
                x = input$x_var,
                y = "Count")
       } else if (input$plot_type == "Scatter Plot") {
-        ggplot(plot_data, aes_string(x = input$x_var, y = input$y_var)) +
+        plot <- ggplot(plot_data(), aes_string(x = input$x_var, y = input$y_var)) +
           geom_point() +
           theme_minimal() +
           labs(title = paste("Scatter Plot", input$x_var, "by", input$y_var),
                x = input$x_var,
                y = input$y_var)
       }
+    
+      output$plot <- renderPlot({
+        plot
+      })
     })
-  })
 }
 
 
