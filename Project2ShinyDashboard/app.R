@@ -52,7 +52,7 @@ ui <-
                       sidebarLayout(
                         sidebarPanel(
                           selectInput("variable", "Select Variable to Summarize:", choices = c("population", "name")),
-                          selectInput("plot_type", "Select Plot Type:", choices = c("Bar Plot", "Histogram")),
+                          selectInput("plot_type", "Select Plot Type:", choices = c("Bar Plot", "Scatter Plot")),
                           actionButton("plot_data", "Plot Data")
                         ),
                         mainPanel(
@@ -76,22 +76,26 @@ server <- function(input, output, session) {
     if (!is.null(fields)) {
       url <- paste0(url, "?fields=", fields)
     }
-    
     response <- GET(url)
     
-    if (status_code(response) != 200) {
+    if (status_code(response) == 200) {
+      content <- content(response, "text", encoding = "UTF-8")
+      content_json <- fromJSON(content, flatten = TRUE)
+      country_data <- as_tibble(content_json)
+      return(country_data)
+    } else {
       stop("Failed to retrieve data")
     }
-    content <- fromJSON(content(response, "text", encoding = "UTF-8"), flatten = TRUE)
-    return(as_tibble(content))
   }
+
   
   get_country_by_name <- function(country_name, fullText = NULL) {
-    url_base <- paste0("https://restcountries.com/v3.1/name/", country_name)
-    
-    query_params <- list(fullText = fullText)
-    
-    result <- GET(url_base, query = query_params)
+    base_url <- "https://restcountries.com/v3.1/name/"
+    url <- paste0(base_url, country_name)
+    if (fullText) {
+      url <- paste0(url, "?fullText=true")
+    }
+    result <- GET(url)
     
     if (status_code(result) == 200) {
       content <- content(result, "text", encoding = "UTF-8")
@@ -107,11 +111,11 @@ server <- function(input, output, session) {
   
   #Code for program to fetch the data based upon input from user.  
   observeEvent(input$get_data_region, {
-    req(input$region, input$fields)
-    fields <- gsub("\\s+", "", input$fields)
+    req(input$region, input$field)
+    fields <- gsub("\\s+", "", input$field)
     data <- get_countries_by_region2(input$region, fields)
     output$data_table <- renderDataTable({
-      data
+      data()
     })
     
     updateSelectInput(session, "x_var", choices = names(data))
@@ -119,7 +123,7 @@ server <- function(input, output, session) {
   })
   
   
-  
+  #Code to fetch data by country
   observeEvent(input$get_data_country, {
     req(input$country_name)
     country_data <- get_country_by_name(input$country_name, input$fullText)
@@ -143,7 +147,7 @@ server <- function(input, output, session) {
   observeEvent(input$subset_rows, {
     output$data_table <- renderDataTable({
       req(input$subset_rows)
-      datatable(data()[1:input$subset_rows, , drop = FALSE])
+      datatable(data()[1:input$subset_rows, input$subset_cols, drop = FALSE])
     })
   })
   
@@ -184,4 +188,3 @@ server <- function(input, output, session) {
 
 
 shinyApp(ui, server)
-  
