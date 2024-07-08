@@ -8,67 +8,68 @@
 #
 
 library(shiny)
-library(shinythemes)
+
+ui <-
+  navbarPage("Country Data Explorer",
+             tabPanel("About",
+                      sidebarLayout(
+                        sidebarPanel(
+                          tags$img(src = "https://d9-wret.s3.us-west-2.amazonaws.com/assets/palladium/production/s3fs-public/styles/medium/public/vhp_img5720.jpg?itok=ORSHFM9B"),
+                          h3("About this application"),
+                          p("The purpose of this application is to analyze different data points by region, country name. "),
+                          p("The API that was utilized for this application:", a("REST Countries API", href = "https://restcountries.com/")),
+                          h4("Tabs"),
+                          p("About: Shows information about the application."),
+                          p("Data Download: Data can be downloaded."),
+                          p("Data Exploration: Data can be explored and visualized/summarized.")
+                        ),
+                        mainPanel()
+                      )
+             ),
+             
+             tabPanel("Data Download",
+                      sidebarLayout(
+                        sidebarPanel(
+                          useShinyFeedback(),
+                          textInput("region", "Enter the Region:", value = "Europe"),
+                          textInput("field", "Enter the Field", value = "name,population,area"),
+                          actionButton("get_data_region", "Get Data by Region"),
+                          hr(),
+                          textInput("country_name", "Country Name", "United States"),
+                          checkboxInput("fullText","Full Text Match", FALSE),
+                          actionButton("get_data_country", "Get Data by Country"),
+                          hr(),
+                          downloadButton("downloadData", "Download Data")
+                        ),
+                        mainPanel(
+                          dataTableOutput("data_table"),
+                          dataTableOutput("country_data_table")
+                        )
+                      )
+             ),
+             
+             tabPanel("Data Exploration",
+                      sidebarLayout(
+                        sidebarPanel(
+                          selectInput("variable", "Select Variable to Summarize:", choices = c("population", "name")),
+                          selectInput("plot_type", "Select Plot Type:", choices = c("Bar Plot", "Histogram")),
+                          actionButton("plot_data", "Plot Data")
+                        ),
+                        mainPanel(
+                          plotOutput("plot")
+                        )
+                      ))
+  )
+
+
+library(shiny)
 library(httr)
 library(jsonlite)
 library(dplyr)
-library(DT)
-library(shinyFeedback)
-# Define UI for application that draws a histogram
-ui <-
-    navbarPage("Country Data Explorer",
-    
-    tabPanel("About",
-             sidebarLayout(
-               sidebarPanel(
-                 h3("About this application"),
-                 p("The purpose of this application is to analyze different data points by region, country name. "),
-                 p("The API that was utilized for this application:", a("REST Countries API", href = "https://restcountries.com/")),
-                 h4("Tabs"),
-                 p("About: Shows information about the application."),
-                 p("Data Download: Data can be downloaded."),
-                 p("Data Exploration: Data can be explored and visualized/summarized.")
-               ),
-               mainPanel()
-               )
-             ),
-             
-    tabPanel("Data Download",
-             sidebarLayout(
-               sidebarPanel(
-                 useShinyFeedback(),
-                 textInput("region", "Enter the Region:", value = "Europe"),
-                 textInput("field", "Enter the Field", value = "name,population,area"),
-                 actionButton("get_data_region", "Get Data by Region"),
-                 hr(),
-                 textInput("country_name", "Country Name", "United States"),
-                 checkboxInput("fullText","Full Text Match", FALSE),
-                 actionButton("get_data_country", "Get Data by Country"),
-                 hr(),
-                 downloadButton("downloadData", "Download Data")
-               ),
-               mainPanel(
-                 DTOutput("data_table")
-               )
-             )
-    ),
-    
-    tabPanel("Data Exploration",
-             sidebarLayout(
-               sidebarPanel(
-                 selectInput("variable", "Select Variable to Summarize:", choices = c("population", "name")),
-                 selectInput("plot_type", "Select Plot Type:", choices = c("Bar Plot", "Histogram")),
-                 actionButton("plot_data", "Plot Data")
-               ),
-               mainPanel(
-                 plotOutput("data_plot")
-               )
-             ))
-    )
-
+library(ggplot2)
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
-
+  
   get_countries_by_region2 <- function(region, fields = NULL) {
     base_url <- "https://restcountries.com/v3.1/region/"
     url <- paste0(base_url, region)
@@ -109,23 +110,27 @@ server <- function(input, output, session) {
     req(input$region, input$fields)
     fields <- gsub("\\s+", "", input$fields)
     data <- get_countries_by_region2(input$region, fields)
-    output$data_table <- renderDT(data, options = list(pageLength = 10))
-    data(data_fetched)  
+    output$data_table <- renderDataTable({
+      data
+    })
     
-    updateSelectInput(session, "variable", choices = names(data))
+    updateSelectInput(session, "x_var", choices = names(data))
+    updateSelectInput(session, "y_var", choices = names(data))
   })
+  
   
   
   observeEvent(input$get_data_country, {
     req(input$country_name)
-    data <- get_country_by_name(input$country_name, input$fullText)
-    output$data_table <- renderDT(data, options = list(pageLength = 10))
-    
-    updateSelectInput(session, "variable", choices = names(data))
+    country_data <- get_country_by_name(input$country_name, input$fullText)
+    output$country_data_table <- renderDataTable({
+      country_data
+    })
   })
   
   
-#This has to subset data
+  
+  #This has to subset data
   output$subset_data <- renderUI({
     req(data())
     tagList(
@@ -134,7 +139,7 @@ server <- function(input, output, session) {
     )
   })
   
-#This has to be able to subset the data accordingly  
+  #This has to be able to subset the data accordingly  
   observeEvent(input$subset_rows, {
     output$data_table <- renderDataTable({
       req(input$subset_rows)
@@ -142,38 +147,41 @@ server <- function(input, output, session) {
     })
   })
   
-#This has to be able to download data
+  #This has to be able to download data
   output$download_data <- downloadHandler(
     filename = function() {
-      paste("country_data", Sys.Date(), ".csv", sep = "")
+      paste("country_data-", Sys.Date(), ".csv", sep = "")
     },
     content = function(file) {
-      write.csv(data, file)
+      write.csv(as.data.frame(data()), file, row.names = FALSE)
     }
   )
   
-#Get the plot graphs
+  #Get the plot graphs
   observeEvent(input$plot_data, {
     req(input$x_var, input$y_var, input$plot_type)
-    plot_data <- data()
     
-    if (input$plot_type == "Bar Plot") {
-      ggplot(plot_data, aes_string(x = input$x_var)) +
-        geom_bar() +
-        theme_minimal() +
-        labs(title = "Bar Plot", x = input$x_var, y = "Count")
-    } else if (input$plot_type == "Scatter Plot") {
-      ggplot(plot_data, aes_string(x = input$x_var, y = input$y_var)) +
-        geom_point() +
-        theme_minimal() +
-        labs(title = "Scatter Plot", x = input$x_var, y = input$y_var)
-  }
-})
+    output$plot <- renderPlot({
+      if (input$plot_type == "Bar Plot") {
+        ggplot(plot_data, aes_string(x = input$x_var, fill = input$y_var)) +
+          geom_bar() +
+          theme_minimal() +
+          labs(title = paste("Bar Plot", input$x_var, "by", input$y_var),
+               x = input$x_var,
+               y = "Count")
+      } else if (input$plot_type == "Scatter Plot") {
+        ggplot(plot_data, aes_string(x = input$x_var, y = input$y_var)) +
+          geom_point() +
+          theme_minimal() +
+          labs(title = paste("Scatter Plot", input$x_var, "by", input$y_var),
+               x = input$x_var,
+               y = input$y_var)
+      }
+    })
+  })
 }
 
 
-  
 
-# Run the application 
-shinyApp(ui = ui, server = server)
+shinyApp(ui, server)
   
