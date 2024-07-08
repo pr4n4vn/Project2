@@ -8,8 +8,6 @@
 #
 
 library(shiny)
-library(DT)
-library(ggplot2)
 ui <-
   navbarPage("Country Data Explorer",
              tabPanel("About",

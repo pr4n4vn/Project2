@@ -11,6 +11,7 @@ library(shiny)
 library(httr)
 library(jsonlite)
 library(dplyr)
+library(ggplot2)
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
   
@@ -124,6 +125,7 @@ server <- function(input, output, session) {
   })
 })
 }
+
 
 shinyApp(ui = ui, server = server)
 
